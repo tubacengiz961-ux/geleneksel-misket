@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Çevrimiçi Geleneksel Misket (Fiziksel Çarpışma)</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        /* SOKAK/TOPRAK ZEMİN TEMASI */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #d7ccc8;
+            background-image: radial-gradient(#bcaaa4 2px, transparent 2px);
+            background-size: 30px 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            touch-action: pan-y;
+            overflow-x: hidden;
+        }
+        h1 { color: #3e2723; margin-bottom: 5px; text-align: center; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 0px #fff;}
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(62, 39, 35, 0.2);
+            border: 4px solid #8d6e63;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            margin-top: 20px;
+            position: relative;
+        }
+        
+        input[type="text"] {
+            width: 90%;
+            padding: 12px;
+            margin: 10px 0;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            border: 2px solid #a1887f;
+            background-color: #efebe9;
+            outline: none;
+            text-align: center;
+            color: #4e342e;
+            font-weight: bold;
+        }
+        input[type="text"]:focus { border-color: #3e2723; }
+        
+        button {
+            background-color: #0277bd;
+            color: white;
+            border: 2px solid #01579b;
+            cursor: pointer;
+            font-weight: bold;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            width: 95%;
+            margin-top: 15px;
+            transition: 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:hover { background-color: #01579b; transform: translateY(-2px); }
+
+        #game-screen, #result-screen { display: none; }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #3e2723;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-bottom: 4px solid #1b100e;
+        }
+
+        #turn-status { font-size: 1.3rem; font-weight: bold; margin: 15px 0; color: #0277bd; min-height: 30px; }
+
+        .arena-container {
+            width: 320px;
+            height: 320px;
+            background: #a1887f;
+            border: 3px solid #5d4037;
+            border-radius: 50%;
+            margin: 20px auto;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 0 40px rgba(62, 39, 35, 0.6);
+        }
+
+        .triangle-lines {
+            width: 0;
+            height: 0;
+            border-left: 100px solid transparent;
+            border-right: 100px solid transparent;
+            border-bottom: 173.2px solid rgba(255,255,255,0.3);
+            position: absolute;
+            z-index: 1;
+        }
+
+        .center-marbles-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center;
+            width: 120px;
+            height: 120px;
+            gap: 5px;
+            z-index: 2;
+        }
+
+        .marble {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #e0f7fa, #0288d1 60%, #01579b 100%);
+            box-shadow: 2px 4px 6px rgba(0,0,0,0.4), inset -2px -2px 6px rgba(0,0,0,0.4);
+            position: relative;
+        }
+        
+        .marble.knocked-out {
+            display: none;
+        }
+
+        /* --- SAPAN (SÜRÜKLE BIRAK) ATIŞ ALANI --- */
+        #drag-area {
+            width: 100%;
+            height: 180px;
+            position: relative;
+            background: rgba(215, 204, 200, 0.5);
+            border: 2px dashed #8d6e63;
+            border-radius: 12px;
+            margin-top: 15px;
+            display: none;
+            touch-action: none; 
+        }
+        
+        #shooter-marble {
+            width: 40px;
+            height: 40px;
+            background: radial-gradient(circle at 30% 30%, #fff59d, #fbc02d 60%, #f57f17 100%);
+            border-radius: 50%;
+            position: absolute;
+            top: 20px; 
+            left: calc(50% - 20px);
+            box-shadow: 2px 4px 8px rgba(0,0,0,0.5);
+            cursor: grab;
+            z-index: 999;
+        }
+        #shooter-marble:active { cursor: grabbing; }
+
+        #aim-line {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            width: 4px;
+            height: 0px;
+            background: #e57373; 
+            transform-origin: top center;
+            z-index: 5;
+            border-radius: 2px;
+            pointer-events: none;
+        }
+
+        .report-text { font-size: 1.2rem; font-weight: bold; color: #d84315; margin: 15px 0; min-height: 35px; }
+
+        .player-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 15px 0; }
+        .player-badge { background: #efebe9; border: 2px solid #8d6e63; padding: 6px 15px; border-radius: 20px; font-weight: bold; color: #4e342e; }
+        .player-badge.active { background: #0277bd; color: white; border-color: #01579b; transform: scale(1.1); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        
+        .table-wrapper { overflow-x: auto; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 2px solid #8d6e63; padding: 10px; text-align: center; }
+        th { background-color: #4e342e; color: #fff; }
+        td { background-color: #fff; font-weight: bold; color: #3e2723; font-size: 1.2rem;}
+    </style>
+</head>
+<body>
+
+    <h1>Misket (Üçgen) Oyunu</h1>
+
+    <div id="login-screen" class="panel">
+        <h3 style="color: #3e2723;">Sokağa Katıl</h3>
+        <input type="text" id="username-input" placeholder="Adınızı girin..." maxlength="12">
+        <input type="text" id="room-input" placeholder="Sokak Kodu (Örn: 1990)..." maxlength="6">
+        <button onclick="joinRoom()">Atış Çizgisine Geç</button>
+        <p style="font-size: 0.85rem; color: #5d4037; margin-top: 15px;">Aynı koda giren herkesle oynanabilir.</p>
+    </div>
+
+    <div id="waiting-screen" class="panel" style="display:none;">
+        <h3 id="waiting-text" style="color:#3e2723;">Rakipler Bekleniyor...</h3>
+        <div class="player-list" id="waiting-players"></div>
+        <button id="start-btn" style="display:none; background-color: #2e7d32; border-color:#1b5e20;" onclick="startRound()">Üçgeni Çiz & Başla</button>
+        <p style="font-size: 0.8rem; color: #5d4037; margin-top: 10px;">Her oyuncu için üçgene 3'er misket konulacaktır.</p>
+    </div>
+
+    <div id="game-screen" class="panel">
+        <div class="status-bar">
+            <div>Atıcılar: <span id="player-count-view">0</span></div>
+            <div>Üçgendeki Misket: <span id="marbles-left-view" style="font-size: 1.4rem; color: #4fc3f7;">0</span></div>
+        </div>
+
+        <div id="turn-status">Yükleniyor...</div>
+        <div class="player-list" id="ingame-players"></div>
+
+        <div class="arena-container">
+            <div class="triangle-lines"></div>
+            <div class="center-marbles-grid" id="marbles-arena"></div>
+        </div>
+
+        <div class="report-text" id="report-view">Sıranızı Bekleyin...</div>
+
+        <div id="drag-area">
+            <div style="font-size: 0.9rem; color: #5d4037; font-weight: bold; position: absolute; width: 100%; text-align: center; bottom: 10px; pointer-events: none;">
+                Sarı misketi tut, geriye doğru çekerek nişan al ve bırak!
+            </div>
+            <div id="aim-line"></div>
+            <div id="shooter-marble"></div>
+        </div>
+
+    </div>
+
+    <div id="result-screen" class="panel">
+        <h2 style="color: #0277bd;">Üçgen Temizlendi!</h2>
+        <h3 id="overall-winner" style="color:#3e2723; font-size: 1.5rem; margin-top:10px;"></h3>
+        
+        <div class="table-wrapper">
+            <table id="result-table">
+                <thead>
+                    <tr>
+                        <th>Sıra</th>
+                        <th>Oyuncu</th>
+                        <th>Toplanan Misket</th>
+                    </tr>
+                </thead>
+                <tbody id="result-body"></tbody>
+            </table>
+        </div>
+        
+        <button id="new-game-btn" style="display:none;" onclick="resetWholeGame()">Yeniden Üçgen Çiz (Yeni Tur)</button>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyBqYTVJcdJQb83qCWpkjFd2H2J3f8UYtXs",
+          authDomain: "dijital-mangala-fc434.firebaseapp.com",
+          databaseURL: "https://dijital-mangala-fc434-default-rtdb.firebaseio.com",
+          projectId: "dijital-mangala-fc434",
+          storageBucket: "dijital-mangala-fc434.firebasestorage.app",
+          messagingSenderId: "901348106095",
+          appId: "1:901348106095:web:1dd4bba92b52493f71929a"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let roomRef;
+        let myName = "";
+        let roomCode = "";
+        
+        // --- SAPAN DEĞİŞKENLERİ ---
+        let isShooting = false; 
+        let isDragging = false;
+        let startX, startY;
+        let currentDragDist = 0;
+        let currentDragAngle = 0;
+        const maxDrag = 150; 
+
+        const shooterMarble = document.getElementById('shooter-marble');
+        const aimLine = document.getElementById('aim-line');
+
+        let gameState = {
+            status: "waiting", 
+            host: "",
+            initialMarbles: 0,
+            marblesInCenter: 0,
+            turnOrder: [],
+            currentTurnIndex: 0,
+            lastReport: "Üçgen çizildi, atışlar başlıyor!",
+            players: {}
+        };
+
+        function joinRoom() {
+            let rawName = document.getElementById('username-input').value.trim();
+            roomCode = document.getElementById('room-input').value.trim();
+
+            if (!rawName || !roomCode) { alert("Lütfen adınızı ve sokak kodunu girin!"); return; }
+
+            roomRef = database.ref('misketmulti/' + roomCode);
+
+            roomRef.once('value', snapshot => {
+                let data = snapshot.val();
+                
+                if (!data || data.status === "gameover" || !data.players) {
+                    myName = rawName;
+                    let freshState = {
+                        status: "waiting",
+                        host: myName,
+                        initialMarbles: 0,
+                        marblesInCenter: 0,
+                        turnOrder: [],
+                        currentTurnIndex: 0,
+                        lastReport: "Sokak hazır!",
+                        players: {}
+                    };
+                    freshState.players[myName] = { score: 0 };
+                    roomRef.set(freshState).then(() => {
+                        document.getElementById('login-screen').style.display = 'none';
+                        roomRef.child('players').child(myName).onDisconnect().remove();
+                        listenToRoom();
+                    });
+                } 
+                else if (data.status === "waiting") {
+                    myName = rawName;
+                    if (data.players && data.players[myName]) {
+                        myName = myName + Math.floor(Math.random() * 100);
+                    }
+                    roomRef.child('players').child(myName).set({ score: 0 }).then(() => {
+                        document.getElementById('login-screen').style.display = 'none';
+                        roomRef.child('players').child(myName).onDisconnect().remove();
+                        listenToRoom();
+                    });
+                } 
+                else {
+                    alert("Oyun şu an oynanıyor! Lütfen bitmesini bekleyin.");
+                    return;
+                }
+            });
+        }
+
+        function listenToRoom() {
+            roomRef.on('value', snapshot => {
+                let data = snapshot.val();
+                if (!data) return;
+                
+                if (data.players) {
+                    let pNames = Object.keys(data.players);
+                    if (pNames.length > 0 && (!data.host || !data.players[data.host])) {
+                        if (myName === pNames[0]) roomRef.update({ host: myName });
+                    }
+                }
+
+                gameState = data;
+                isShooting = false; 
+
+                updateUI();
+                checkDroppedPlayer(); 
+            });
+        }
+
+        function checkDroppedPlayer() {
+            if (gameState.status === "playing" && myName === gameState.host) {
+                let tOrder = Array.isArray(gameState.turnOrder) ? gameState.turnOrder : Object.values(gameState.turnOrder || {});
+                if (tOrder.length === 0) return;
+                
+                let activePlayer = tOrder[gameState.currentTurnIndex];
+                
+                if (activePlayer && (!gameState.players || !gameState.players[activePlayer])) {
+                    let nextIdx = getNextActivePlayerIndex(gameState.currentTurnIndex);
+                    roomRef.update({
+                        currentTurnIndex: nextIdx,
+                        lastReport: `${activePlayer} sokaktan ayrıldı. Sıra bir sonrakine geçti!`
+                    });
+                }
+            }
+        }
+
+        function updateUI() {
+            if (!gameState.players) return; 
+            
+            let actualHost = gameState.host;
+            let pNames = Object.keys(gameState.players);
+            let tOrder = gameState.turnOrder ? (Array.isArray(gameState.turnOrder) ? gameState.turnOrder : Object.values(gameState.turnOrder)) : [];
+
+            if (gameState.status === "waiting") {
+                document.getElementById('game-screen').style.display = 'none';
+                document.getElementById('result-screen').style.display = 'none';
+                document.getElementById('waiting-screen').style.display = 'block';
+                
+                let pList = document.getElementById('waiting-players');
+                pList.innerHTML = "";
+                pNames.forEach(p => {
+                    pList.innerHTML += `<span class="player-badge">${p} ${p === actualHost ? '(Kurucu)' : ''}</span>`;
+                });
+
+                if (myName === actualHost && pNames.length > 1) {
+                    document.getElementById('waiting-text').innerText = "Oyuncular Tamam! Atış Çizgisine Geçebilirsiniz.";
+                    document.getElementById('start-btn').style.display = 'inline-block';
+                } else {
+                    document.getElementById('waiting-text').innerText = `Kurucu (${actualHost})'nun başlatması bekleniyor...`;
+                    document.getElementById('start-btn').style.display = 'none';
+                }
+            }
+            else if (gameState.status === "playing") {
+                document.getElementById('waiting-screen').style.display = 'none';
+                document.getElementById('result-screen').style.display = 'none';
+                document.getElementById('game-screen').style.display = 'block';
+                
+                document.getElementById('player-count-view').innerText = pNames.length;
+                document.getElementById('marbles-left-view').innerText = gameState.marblesInCenter;
+                document.getElementById('report-view').innerText = gameState.lastReport;
+
+                let arena = document.getElementById('marbles-arena');
+                arena.innerHTML = "";
+                let maxM = gameState.initialMarbles;
+                for (let i = 0; i < maxM; i++) {
+                    let bClass = "marble";
+                    if (i >= gameState.marblesInCenter) bClass += " knocked-out"; 
+                    arena.innerHTML += `<div class="${bClass}"></div>`;
+                }
+
+                // UI her yenilendiğinde atıcı misketi eski yerine sorunsuzca geri al
+                shooterMarble.style.transition = 'none';
+                shooterMarble.style.transform = 'translate(0px, 0px)';
+                shooterMarble.style.opacity = '1';
+
+                let activePlayer = tOrder[gameState.currentTurnIndex];
+                
+                let inGamePList = document.getElementById('ingame-players');
+                inGamePList.innerHTML = "";
+                tOrder.forEach(p => {
+                    let d = gameState.players[p];
+                    if(!d) return;
+                    let cStr = "player-badge";
+                    if (p === activePlayer) cStr += " active";
+                    inGamePList.innerHTML += `<span class="${cStr}">${p}: ${d.score} Misket</span>`;
+                });
+
+                if (activePlayer === myName && !isShooting) {
+                    document.getElementById('turn-status').innerText = "SIRA SİZDE! Atış Yapın!";
+                    document.getElementById('drag-area').style.display = 'block';
+                } else {
+                    document.getElementById('turn-status').innerText = `Sıra ${activePlayer} adlı oyuncuda...`;
+                    document.getElementById('drag-area').style.display = 'none';
+                    isDragging = false;
+                }
+            }
+            else if (gameState.status === "gameover") {
+                document.getElementById('game-screen').style.display = 'none';
+                document.getElementById('waiting-screen').style.display = 'none';
+                document.getElementById('result-screen').style.display = 'block';
+                isShooting = false; 
+
+                let tbody = document.getElementById('result-body');
+                tbody.innerHTML = "";
+                
+                let sortedP = pNames.sort((a,b) => gameState.players[b].score - gameState.players[a].score);
+                
+                sortedP.forEach((p, index) => {
+                    let tr = `<tr>
+                        <td>${index + 1}</td>
+                        <td>${p}</td>
+                        <td>${gameState.players[p].score}</td>
+                    </tr>`;
+                    tbody.innerHTML += tr;
+                });
+
+                document.getElementById('overall-winner').innerText = `🏆 KAZANAN: ${sortedP[0]} (${gameState.players[sortedP[0]].score} Misket Topladı)`;
+
+                if (myName === actualHost) {
+                    document.getElementById('new-game-btn').style.display = 'inline-block';
+                } else {
+                    document.getElementById('new-game-btn').style.display = 'none';
+                }
+            }
+        }
+
+        function startRound() {
+            let pNames = Object.keys(gameState.players);
+            let pData = gameState.players;
+            for (let p in pData) { pData[p].score = 0; }
+
+            let totalMarbles = pNames.length * 3;
+            isShooting = false; 
+
+            roomRef.update({
+                status: "playing",
+                initialMarbles: totalMarbles,
+                marblesInCenter: totalMarbles,
+                turnOrder: pNames, 
+                currentTurnIndex: 0,
+                lastReport: `Herkes 3'er misket koydu. Toplam ${totalMarbles} misket üçgende!`,
+                players: pData
+            });
+        }
+
+        function getNextActivePlayerIndex(currentIndex) {
+            let order = gameState.turnOrder ? (Array.isArray(gameState.turnOrder) ? gameState.turnOrder : Object.values(gameState.turnOrder)) : [];
+            let players = gameState.players || {};
+            let nextIdx = currentIndex;
+            if (order.length === 0) return 0;
+            for (let i = 0; i < order.length; i++) {
+                nextIdx = (nextIdx + 1) % order.length;
+                let pName = order[nextIdx];
+                if (players[pName]) return nextIdx;
+            }
+            return 0; 
+        }
+
+        // --- SÜRÜKLE BIRAK OLAYLARI (TOUCH VE MOUSE) ---
+        shooterMarble.addEventListener('pointerdown', (e) => {
+            let tOrder = gameState.turnOrder ? (Array.isArray(gameState.turnOrder) ? gameState.turnOrder : Object.values(gameState.turnOrder)) : [];
+            let activePlayer = tOrder[gameState.currentTurnIndex];
+            
+            if (activePlayer !== myName || isShooting) return;
+            
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            shooterMarble.style.transition = 'none'; 
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            
+            let deltaX = e.clientX - startX;
+            let deltaY = e.clientY - startY;
+            
+            // Sadece geriye (aşağıya) çekmesine izin ver
+            if (deltaY < 0) deltaY = 0; 
+
+            let dist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            
+            if (dist > maxDrag) {
+                let ratio = maxDrag / dist;
+                deltaX *= ratio;
+                deltaY *= ratio;
+                dist = maxDrag;
+            }
+
+            shooterMarble.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+            aimLine.style.height = `${dist * 1.5}px`;
+            
+            let angleRad = Math.atan2(deltaX, deltaY); 
+            let angleDeg = angleRad * (180 / Math.PI);
+            aimLine.style.transform = `translateX(-50%) rotate(${-angleDeg}deg)`;
+            
+            // Atış göstergesi renk kodlaması
+            let powerPercent = (dist / maxDrag) * 100;
+            if (powerPercent >= 70 && powerPercent <= 85 && Math.abs(angleDeg) <= 8) {
+                aimLine.style.background = '#81c784'; // Yeşil: Mükemmel
+            } else if (powerPercent >= 50 && powerPercent <= 95 && Math.abs(angleDeg) <= 20) {
+                aimLine.style.background = '#ffd54f'; // Sarı: Kabul edilebilir
+            } else {
+                aimLine.style.background = '#e57373'; // Kırmızı: Hatalı atış riski
+            }
+
+            currentDragDist = dist;
+            currentDragAngle = angleDeg; 
+        });
+
+        window.addEventListener('pointerup', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            aimLine.style.height = '0px';
+
+            if (currentDragDist > 20) {
+                let finalPower = (currentDragDist / maxDrag) * 100;
+                let finalAngle = -currentDragAngle; 
+                executeShotAndAnimate(finalAngle, finalPower);
+            } else {
+                // Yeterince çekilmediyse yerine geri bırak
+                shooterMarble.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                shooterMarble.style.transform = 'translate(0px, 0px)';
+            }
+        });
+
+        // --- ÇARPIŞMA VE FİZİK ANİMASYONLARI ---
+        function executeShotAndAnimate(finalAngle, finalPower) {
+            if (gameState.status !== "playing" || isShooting) return;
+            isShooting = true; 
+
+            let knockedMarbles = 0;
+            let reportMsg = "";
+            let keepPlaying = false;
+
+            // Akademik zorluk katsayıları
+            let isAnglePerfect = (finalAngle >= -8 && finalAngle <= 8);
+            let isAngleGood = (finalAngle >= -20 && finalAngle <= 20);
+            
+            let isPowerPerfect = (finalPower >= 70 && finalPower <= 85);
+            let isPowerGood = (finalPower >= 50 && finalPower <= 95);
+
+            if (isAnglePerfect && isPowerPerfect) {
+                knockedMarbles = Math.random() > 0.5 ? 3 : 2;
+                reportMsg = `🎯 Başarılı! Kusursuz atış ile ${knockedMarbles} misket topladınız. (Tekrar Atış Hakkı)`;
+                keepPlaying = true;
+            } 
+            else if ((isAnglePerfect && isPowerGood) || (isAngleGood && isPowerPerfect)) {
+                knockedMarbles = 1;
+                reportMsg = `✅ İsabetli! 1 misket topladınız. (Tekrar Atış Hakkı)`;
+                keepPlaying = true;
+            } 
+            else {
+                knockedMarbles = 0;
+                // Argo içermeyen, eğitici hata mesajları
+                if(!isAngleGood) reportMsg = `⚠️ Atış Başarısız: Misket üçgenin dışına çıktı. Sıra diğer oyuncuda.`;
+                else if(finalPower < 50) reportMsg = `⚠️ Atış Başarısız: Yetersiz güç! Misket hedefe ulaşamadı. Sıra diğer oyuncuda.`;
+                else reportMsg = `⚠️ Atış Başarısız: Aşırı güç! Misket hedefin üzerinden geçti. Sıra diğer oyuncuda.`;
+                keepPlaying = false;
+            }
+
+            // 1. ADIM: BAŞ MİSKETİN UÇUŞU
+            let distanceToTravel = (finalPower / 100) * 380; 
+            let rad = finalAngle * (Math.PI / 180);
+            let targetX = Math.sin(rad) * distanceToTravel;
+            let targetY = -Math.cos(rad) * distanceToTravel; 
+
+            shooterMarble.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+            shooterMarble.style.transform = `translate(${targetX}px, ${targetY}px)`;
+
+            // 2. ADIM: ÇARPIŞMA (DAĞILMA) EFEKTİ VE FIREBASE GÜNCELLEMESİ
+            setTimeout(() => {
+                
+                if (knockedMarbles > 0) {
+                    let activeMarbles = document.querySelectorAll('#marbles-arena .marble:not(.knocked-out)');
+                    
+                    for (let i = 0; i < knockedMarbles && i < activeMarbles.length; i++) {
+                        let m = activeMarbles[i];
+                        let scatterAngle = (Math.random() * 360) * (Math.PI / 180);
+                        let scX = Math.cos(scatterAngle) * 200; 
+                        let scY = Math.sin(scatterAngle) * 200;
+                        
+                        m.style.transition = 'transform 0.5s ease-out, opacity 0.5s ease-in';
+                        m.style.transform = `translate(${scX}px, ${scY}px) scale(0.5)`;
+                        m.style.opacity = '0'; 
+                    }
+                } else {
+                    // Atış başarısız ise opaklığı düşür
+                    shooterMarble.style.opacity = '0.3'; 
+                }
+
+                // 3. ADIM: ANİMASYON BİTİNCE VERİTABANINA YAZ
+                setTimeout(() => {
+                    let remainingCenter = gameState.marblesInCenter - knockedMarbles;
+                    if (remainingCenter < 0) {
+                        knockedMarbles += remainingCenter; 
+                        remainingCenter = 0;
+                    }
+
+                    let pData = gameState.players;
+                    pData[myName].score += knockedMarbles;
+
+                    let nextIndex = gameState.currentTurnIndex; 
+                    if (!keepPlaying || remainingCenter <= 0) {
+                        nextIndex = getNextActivePlayerIndex(gameState.currentTurnIndex);
+                    }
+
+                    if (remainingCenter <= 0) {
+                        roomRef.update({
+                            marblesInCenter: 0,
+                            players: pData,
+                            status: "gameover",
+                            lastReport: `Üçgen temizlendi! Son ${knockedMarbles} misketi ${myName} aldı.`
+                        });
+                    } else {
+                        roomRef.update({
+                            marblesInCenter: remainingCenter,
+                            players: pData,
+                            currentTurnIndex: nextIndex,
+                            lastReport: reportMsg
+                        });
+                    }
+                }, 600); 
+
+            }, 400); 
+        }
+
+        function resetWholeGame() {
+            let freshPlayers = {};
+            for (let p in gameState.players) {
+                freshPlayers[p] = { score: 0 };
+            }
+            roomRef.update({
+                status: "waiting",
+                initialMarbles: 0,
+                marblesInCenter: 0,
+                turnOrder: [],
+                currentTurnIndex: 0,
+                lastReport: "Üçgen silindi, yeniden çizilecek.",
+                players: freshPlayers
+            });
+        }
+    </script>
+</body>
+</html>
